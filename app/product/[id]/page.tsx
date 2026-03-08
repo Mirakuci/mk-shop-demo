@@ -7,6 +7,10 @@ import { PRODUCTS, getProduct, type Product } from '../../data/products'
 const CART_KEY = 'mkshop_classic_cart_v1'
 type CartItem = Product & { qty: number }
 
+type ProductDetailPageProps = {
+  params: Promise<{ id: string }>
+}
+
 const formatKc = (n: number) => new Intl.NumberFormat('cs-CZ').format(n) + ' Kč'
 
 function badgeClass(b?: Product['badge']) {
@@ -16,13 +20,27 @@ function badgeClass(b?: Product['badge']) {
   return 'badge badge--tip'
 }
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const product = getProduct(params.id)
-
+export default function ProductDetailPage({ params }: ProductDetailPageProps) {
+  const [productId, setProductId] = useState<string | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [qty, setQty] = useState(1)
   const [cartOpen, setCartOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    params.then((resolved) => {
+      if (active) setProductId(resolved.id)
+    })
+    return () => {
+      active = false
+    }
+  }, [params])
+
+  const product = useMemo(() => {
+    if (!productId) return null
+    return getProduct(productId)
+  }, [productId])
 
   // schovej portfolio header (pokud se ti na localhostu zobrazuje)
   useEffect(() => {
@@ -50,6 +68,7 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       if (raw) setCart(JSON.parse(raw))
     } catch {}
   }, [])
+
   useEffect(() => {
     try {
       localStorage.setItem(CART_KEY, JSON.stringify(cart))
@@ -80,9 +99,11 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
   function inc(id: string) {
     setCart((c) => c.map((i) => (i.id === id ? { ...i, qty: i.qty + 1 } : i)))
   }
+
   function dec(id: string) {
     setCart((c) => c.map((i) => (i.id === id ? { ...i, qty: i.qty - 1 } : i)).filter((i) => i.qty > 0))
   }
+
   function clear() {
     setCart([])
     pop('Košík vyprázdněn')
@@ -93,12 +114,20 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
     return PRODUCTS.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 3)
   }, [product])
 
+  if (!productId) {
+    return (
+      <div className="container" style={{ padding: 24 }}>
+        <h1>Načítám produkt…</h1>
+        <style jsx global>{GLOBAL_STYLES}</style>
+      </div>
+    )
+  }
+
   if (!product) {
     return (
       <div className="container" style={{ padding: 24 }}>
         <h1>Produkt nenalezen</h1>
         <Link href="/">Zpět na katalog</Link>
-
         <style jsx global>{GLOBAL_STYLES}</style>
       </div>
     )
@@ -106,7 +135,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
 
   return (
     <div className="page">
-      {/* TOP BAR */}
       <div className="topbar">
         <div className="container topbar__inner">
           <Link className="logo" href="/" aria-label="MK Shop">
@@ -187,7 +215,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
       </div>
 
       <main className="container" style={{ padding: '18px 16px 0' }}>
-        {/* DETAIL */}
         <div className="detail">
           <div className="gallery">
             <span className={badgeClass(product.badge)}>{product.badge ?? 'Skladem'}</span>
@@ -236,7 +263,6 @@ export default function ProductDetailPage({ params }: { params: { id: string } }
           </div>
         </div>
 
-        {/* RELATED */}
         {related.length > 0 && (
           <section style={{ marginTop: 22 }}>
             <div className="sectionHead">
